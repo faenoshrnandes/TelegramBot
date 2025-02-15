@@ -1,44 +1,47 @@
-import os
 from pyrogram import Client, filters
-from pyrogram.types import Message
 import time
-from dotenv import load_dotenv  
+import asyncio
 
-load_dotenv()  
+# Replace with your API details
+API_ID = "8314131"
+API_HASH = "f5648c77bb1e15c61358dd4aa945120d"
+SESSION_STRING = "your_generated_session_string"
 
-API_ID = os.getenv("API_ID")
-if API_ID is None:
-    raise ValueError("API_ID is missing from environment variables.")
-API_ID = int(API_ID)
-
-API_HASH = os.getenv("API_HASH")
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-
-if not API_HASH or not BOT_TOKEN:
-    raise ValueError("API_HASH or BOT_TOKEN is missing from environment variables.")
-
-app = Client("offline_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
-
+# Dictionary to track user messages
 user_message_count = {}
-warning_threshold = 2
-block_duration = 300
 blocked_users = {}
+BLOCK_THRESHOLD = 3  # Messages before bot responds
+BLOCK_DURATION = 60  # Temporary block duration in seconds
 
-@app.on_message(filters.private & ~filters.bot)
-def auto_reply(client: Client, message: Message):
+app = Client("UserBot", api_id=API_ID, api_hash=API_HASH, session_string=SESSION_STRING)
+
+@app.on_message(filters.private & ~filters.me)
+def auto_reply(client, message):
     user_id = message.from_user.id
-    current_time = time.time()
     
-    if user_id in blocked_users and current_time < blocked_users[user_id]:
-        return
+    # Track user message count
+    if user_id not in user_message_count:
+        user_message_count[user_id] = 0
+    user_message_count[user_id] += 1
     
-    user_message_count[user_id] = user_message_count.get(user_id, 0) + 1
+    # If user reaches message threshold, send a response
+    if user_message_count[user_id] == BLOCK_THRESHOLD:
+        message.reply_text("Hello There OWl BOT Here Garmin is currently unavailable at the moment. Please wait! while he gets back")
+    elif user_message_count[user_id] > BLOCK_THRESHOLD:
+        message.reply_text("You're sending too many messages. Temporarily blocking you!")
+        client.block_user(user_id)
+        blocked_users[user_id] = time.time()
+        user_message_count[user_id] = 0
+    
+async def unblock_users():
+    while True:
+        current_time = time.time()
+        for user_id in list(blocked_users.keys()):
+            if current_time - blocked_users[user_id] >= BLOCK_DURATION:
+                await app.unblock_user(user_id)
+                del blocked_users[user_id]
+        await asyncio.sleep(10)  # Check every 10 seconds
 
-    if user_message_count[user_id] == 1:
-        message.reply_text("Please wait, my master is not available. Could you wait?")
-    elif user_message_count[user_id] >= warning_threshold:
-        message.reply_text("/dwarn You are sending too many messages. You are temporarily blocked.")
-        blocked_users[user_id] = current_time + block_duration  
-        user_message_count[user_id] = 0  
-
-app.run()
+# Start the bot
+app.start()
+asyncio.run(unblock_users())
