@@ -2,13 +2,20 @@ import os
 from pyrogram import Client, filters
 from pyrogram.types import Message
 import time
-from dotenv import load_dotenv  # Load .env file
+from dotenv import load_dotenv  
 
-load_dotenv()  # Load environment variables
+load_dotenv()  
 
-API_ID = int(os.getenv("API_ID"))
+API_ID = os.getenv("API_ID")
+if API_ID is None:
+    raise ValueError("API_ID is missing from environment variables.")
+API_ID = int(API_ID)
+
 API_HASH = os.getenv("API_HASH")
 BOT_TOKEN = os.getenv("BOT_TOKEN")
+
+if not API_HASH or not BOT_TOKEN:
+    raise ValueError("API_HASH or BOT_TOKEN is missing from environment variables.")
 
 app = Client("offline_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
@@ -25,11 +32,8 @@ def auto_reply(client: Client, message: Message):
     if user_id in blocked_users and current_time < blocked_users[user_id]:
         return
     
-    if user_id not in user_message_count:
-        user_message_count[user_id] = 1
-    else:
-        user_message_count[user_id] += 1
-    
+    user_message_count[user_id] = user_message_count.get(user_id, 0) + 1
+
     if user_message_count[user_id] == 1:
         message.reply_text("Please wait, my master is not available. Could you wait?")
     elif user_message_count[user_id] >= warning_threshold:
@@ -38,4 +42,3 @@ def auto_reply(client: Client, message: Message):
         user_message_count[user_id] = 0  
 
 app.run()
-
